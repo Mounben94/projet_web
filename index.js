@@ -373,11 +373,12 @@ window.onload = async () => {
   }
 
   // Récupération des données
-  let [earthquakeData, floodData, fireData, franceBorders] = await Promise.all([
-    fetch("/data/dataset_seismes.json").then((res) => res.json()),
-    fetch("/data/dataset_innondations.json").then((res) => res.json()),
-    fetch("/data/dataset_incendies.geojson").then((res) => res.json()),
-    fetch("/data/france_borders.geojson").then((res) => res.json()),
+  let [earthquakeData, floodData, fireData, franceBorders, departementData] = await Promise.all([
+    fetch("./data/dataset_seismes.json").then((res) => res.json()),
+    fetch("./data/dataset_innondations.json").then((res) => res.json()),
+    fetch("./data/dataset_incendies.geojson").then((res) => res.json()),
+    fetch("./data/france_borders.geojson").then((res) => res.json()),
+    fetch("./data/dataset_departements.geojson").then((res) => res.json())
   ]);
 
   // Création des couches géographiques
@@ -627,6 +628,25 @@ window.onload = async () => {
       }
     }
   });
+
+  // Le navigateur demande la permission à l'utilisateur de localiser son emplacement
+
+  const optionsNavigator = {
+    enableHighAccuracy: true,
+    timeout: 5000,
+    maximumAge: 0,
+  };
+  
+  function successNavigator(pos) {
+    const crd = pos.coords;
+    addMarker([crd.latitude, crd.longitude]);
+  }
+  
+  function errorNavigator(err) {
+    console.warn(`Error : (${err.code}): ${err.message}`);
+  }
+  
+  navigator.geolocation.watchPosition(successNavigator, errorNavigator, optionsNavigator);
 
   // Listener pour le bouton "Trouver la zone la plus sûre"
   safestButton.addEventListener("click", () => {

@@ -1,41 +1,71 @@
-const inputFile = "./dataset_incendies.json";
-const outputFile = "./data/dataset_incendies_test.geojson";
+async function convertToGeoJSON() {
+  const csvFilePath = '../data/dataset_incendies.csv';
+  const inseeFilePath = '../data/dataset_insee.json';
 
-(async function convertToGeoJSON() {
-  try {
-    const response = await fetch(inputFile);
+    // Fetch and parse INSEE data
+    const inseeResponse = await fetch(inseeFilePath);
+    const inseeData = await inseeResponse.json();
+    console.log(inseeData);
+    const inseeDict = inseeData.reduce((dict, item) => {
+      const inseeCode = String(item.code_commune_insee || '').padStart(5, '0');
+      const geopoint = item._geopoint || "0.0,0.0";
+      if (inseeCode && geopoint) {
+        dict[inseeCode] = geopoint;
+      }
+      return dict;
+    }, {});
 
-    if (!response.ok) {
-      throw new Error(`Error while reading the JSON file : ${response.statusText}`);
-    }
+    // Fetch and parse CSV data
+    const csvResponse = await fetch(csvFilePath);
+    const csvData = await csvResponse.text();
+    const results = Papa.parse(csvData, {
+      header: true,
+      delimiter: ';',
+      dynamicTyping: true,
+      skipEmptyLines: true
+    });
 
-    const jsonData = await response.json();
+    // Generate GeoJSON features
+    const features = results.data.map(row => {
+      const inseeCode = String(row.insee_code || '0').padStart(5, '0');
+      const geopoint = inseeDict[inseeCode] || "0.0,0.0";
+      const [latitude, longitude] = geopoint.split(',').map(parseFloat);
 
-    if (!Array.isArray(jsonData)) {
-      throw new Error("Can't be converted to GeoJSON : not an array");
-    }
+      return {
+        type: 'Feature',
+        properties: {
+          year: row.year || 0,
+          num: row.num || 0,
+          dept: row.dept || 0,
+          insee_code: inseeCode,
+          commune_name: row.commune_name,
+          date_alerte: row.date_alerte || 0,
+          covered_surface: row.covered_surface || 0,
+          forest_surface: row.forest_surface || 0,
+          reason: row.reason || 0,
+          temperature: row.temperature || 0,
+          hygrometry: row.hygrometry || 0,
+          average_wind_speed: row.average_wind_speed || 0,
+          wind_direction: row.wind_direction || 0
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [longitude, latitude]
+        }
+      };
+    });
 
-    const geojson_output = {
+    const geojson = {
       type: "FeatureCollection",
-      features: jsonData.map(item => ({
-        type: "Feature",
-        properties: Object.fromEntries(
-          Object.entries(item).filter(([key]) => key !== "coordinates")
-        ),
-        geometry: item.coordinates
-      }))
+      features
     };
 
-    const geojsonString = JSON.stringify(geojson_output, null, 2);
-    const blob = new Blob([geojsonString], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = outputFile;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Trigger the download of the GeoJSON file
+    const geojsonBlob = new Blob([JSON.stringify(geojson, null, 4)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(geojsonBlob);
+    link.download = 'output.geojson';
+    // link.click();
+}
 
-  } catch (error) {
-    console.error("Error :", error.message);
-  }
-})();
+document.addEventListener("DOMContentLoaded", convertToGeoJSON);
